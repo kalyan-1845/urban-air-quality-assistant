@@ -18,6 +18,13 @@ ENV/
 .coverage
 htmlcov/
 
+# Media recordings (kept local)
+*.mp4
+*.webm
+*.wav
+*.mp3
+demo_video/
+
 # IDE files
 .vscode/
 .idea/
