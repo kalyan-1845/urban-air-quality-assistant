@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AirQualityAdvisoryResponse",
+  "type": "object",
+  "required": [
+    "summary",
+    "risk_level",
+    "daily_routines",
+    "indoor_hacks",
+    "sustainable_swaps",
+    "disclaimer"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Executive summary of the current air situation tailored to the user's location and family profile."
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["Low", "Moderate", "Unhealthy", "Severe", "Hazardous"]
+    },
+    "daily_routines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["time_of_day", "activity", "recommendation", "mask_required"],
+        "properties": {
+          "time_of_day": {"type": "string", "example": "Morning (06:00 - 09:00)"},
+          "activity": {"type": "string", "example": "Commute / Exercise"},
+          "recommendation": {"type": "string"},
+          "mask_required": {"type": "string", "enum": ["None", "Cloth/Surgical", "N95/FFP2", "Stay Indoors"]}
+        }
+      }
+    },
+    "indoor_hacks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "category", "action_steps", "difficulty_level", "estimated_cost_inr"],
+        "properties": {
+          "title": {"type": "string"},
+          "category": {"type": "string", "enum": ["Ventilation", "Purification", "Cleaning", "Moisture & Plants"]},
+          "action_steps": {"type": "string"},
+          "difficulty_level": {"type": "string", "enum": ["Easy", "Moderate", "DIY Project"]},
+          "estimated_cost_inr": {"type": "number"}
+        }
+      }
+    },
+    "sustainable_swaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["current_habit", "sustainable_swap", "co2_saved_kg_month", "pm25_exposure_reduction_pct", "impact_explanation"],
+        "properties": {
+          "current_habit": {"type": "string"},
+          "sustainable_swap": {"type": "string"},
+          "co2_saved_kg_month": {"type": "number"},
+          "pm25_exposure_reduction_pct": {"type": "number"},
+          "impact_explanation": {"type": "string"}
+        }
+      }
+    },
+    "disclaimer": {
+      "type": "string"
+    }
+  }
+}
