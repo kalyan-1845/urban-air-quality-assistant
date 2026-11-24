@@ -7,8 +7,10 @@ Author: Bhoompally Kalyan Reddy (kalyan-1845)
 """
 
 import json
+from typing import Dict, Any
 import streamlit as st
 import plotly.graph_objects as go
+import config
 import air_quality_service as aq_service
 import gemini_engine
 
@@ -101,6 +103,35 @@ h1, h2, h3, h4, h5, h6 {
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 
+# ---------------- EFFICIENCY CACHING WRAPPERS ----------------
+@st.cache_data(ttl=config.CACHE_TTL_SECONDS, show_spinner=False)
+def get_cached_air_quality(city: str) -> Dict[str, Any]:
+    """Cache atmospheric API responses for 10 minutes to maximize efficiency."""
+    return aq_service.fetch_live_air_quality(city)
+
+
+@st.cache_data(ttl=config.CACHE_TTL_SECONDS, show_spinner=False)
+def get_cached_advisory(
+    city: str,
+    aqi: int,
+    pm25: float,
+    pm10: float,
+    household: str,
+    lifestyle: str,
+    concerns: str,
+) -> Dict[str, Any]:
+    """Cache synthesized Gemini prompt results to eliminate redundant LLM calls."""
+    return gemini_engine.generate_air_quality_advisory(
+        city=city,
+        aqi=aqi,
+        pm25=pm25,
+        pm10=pm10,
+        family_profile=household,
+        lifestyle=lifestyle,
+        custom_concerns=concerns,
+    )
+
+
 def render_aqi_gauge(aqi_val: int, tier_name: str, tier_color: str):
     """Render a modern Plotly semi-circular AQI gauge."""
     fig = go.Figure(
@@ -185,7 +216,11 @@ with st.sidebar:
     )
 
     st.divider()
-    refresh_button = st.button("✨ Generate AI Advisory", use_container_width=True)
+    refresh_button = st.button("✨ Refresh Advisory", use_container_width=True)
+    if refresh_button:
+        st.cache_data.clear()
+        st.rerun()
+
     st.markdown(
         "<div style='text-align:center; font-size:0.75rem; color:#6B7280; margin-top:1rem;'>"
         "Evaluated for Google PromptWars 2026<br>Public GitHub: <b>kalyan-1845</b></div>",
@@ -214,9 +249,9 @@ with col_badge:
         unsafe_allow_html=True,
     )
 
-# Fetch Air Quality Data
+# Fetch Cached Air Quality Data
 with st.spinner(f"Querying atmospheric sensors for {target_city}..."):
-    aq_data = aq_service.fetch_live_air_quality(target_city)
+    aq_data = get_cached_air_quality(target_city)
 
 # Metric Showcase Cards
 m_col1, m_col2, m_col3, m_col4 = st.columns([1.5, 1, 1, 1.5])
@@ -259,24 +294,17 @@ with m_col4:
         unsafe_allow_html=True,
     )
 
-# Cache / Generate AI Advisory
-session_key = f"{target_city}_{aq_data['aqi']}_{target_household}_{target_lifestyle}"
-
-if "advisory_data" not in st.session_state or st.session_state.get("last_key") != session_key or refresh_button:
-    with st.spinner("Synthesizing personalized prompt matrix with Google Gemini..."):
-        advisory = gemini_engine.generate_air_quality_advisory(
-            city=target_city,
-            aqi=aq_data["aqi"],
-            pm25=aq_data["pm25"],
-            pm10=aq_data["pm10"],
-            family_profile=target_household,
-            lifestyle=target_lifestyle,
-            custom_concerns=custom_notes,
-        )
-        st.session_state["advisory_data"] = advisory
-        st.session_state["last_key"] = session_key
-else:
-    advisory = st.session_state["advisory_data"]
+# Cached AI Advisory
+with st.spinner("Synthesizing personalized prompt matrix with Google Gemini..."):
+    advisory = get_cached_advisory(
+        city=target_city,
+        aqi=aq_data["aqi"],
+        pm25=aq_data["pm25"],
+        pm10=aq_data["pm10"],
+        household=target_household,
+        lifestyle=target_lifestyle,
+        concerns=custom_notes,
+    )
 
 # Executive Summary Banner
 st.markdown(
