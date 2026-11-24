@@ -6,6 +6,7 @@ Open-Meteo Air Quality API for Google PromptWars Hackathon 2026.
 Author: Bhoompally Kalyan Reddy (kalyan-1845)
 """
 
+import json
 import streamlit as st
 import plotly.graph_objects as go
 import air_quality_service as aq_service
