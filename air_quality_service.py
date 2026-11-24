@@ -10,6 +10,14 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import config
+from exceptions import (
+    AeroLifeBaseException,
+    AirQualityServiceException,
+    CityNotFoundException,
+    InvalidAQIValueException,
+    validate_aqi_bounds,
+    validate_city_name,
+)
 
 # Backward compatibility re-export
 DEFAULT_CITIES = config.DEFAULT_CITIES
@@ -35,15 +43,27 @@ def get_http_session() -> requests.Session:
 
 
 @lru_cache(maxsize=128)
-def get_aqi_category(aqi_value: int) -> Dict[str, str]:
+def get_aqi_category(aqi_value: int, strict: bool = False) -> Dict[str, str]:
     """Categorize numerical AQI into actionable CPCB and EPA health tiers with memoization.
 
     Args:
         aqi_value: Numerical AQI value (0 - 500+).
+        strict: When True, raises InvalidAQIValueException for negative inputs.
 
     Returns:
         Structured dictionary containing health advisory tier and visual metadata.
     """
+    if aqi_value < 0:
+        if strict:
+            raise InvalidAQIValueException(aqi_value)
+        return {
+            "tier": "Unknown / Calibrating",
+            "color": "#6B7280",
+            "severity": "Invalid / Sensor Calibration",
+            "badge": "⚪ Unknown",
+            "action": "Sensor reporting negative or calibration values. Please verify station status.",
+        }
+
     if aqi_value <= config.AQI_THRESHOLDS["GOOD"]:
         return {
             "tier": "Good",
@@ -84,6 +104,14 @@ def get_aqi_category(aqi_value: int) -> Dict[str, str]:
             "badge": "🔴 Very Poor / Severe",
             "action": "Avoid outdoor activities. Run air purifiers indoors and seal window gaps.",
         }
+    elif aqi_value > 1000:
+        return {
+            "tier": "Severe / Hazardous (Catastrophic)",
+            "color": "#450A0A",
+            "severity": "Extreme Emergency",
+            "badge": "🟣 Hazardous Extreme",
+            "action": "Catastrophic emergency (>1000 AQI). Complete shutdown of outdoor activity. Sealed air purification mandatory.",
+        }
     else:
         return {
             "tier": "Severe / Hazardous",
@@ -104,6 +132,9 @@ def resolve_city_coordinates(city_name: str) -> Optional[Tuple[float, float]]:
     Returns:
         Tuple of (latitude, longitude) or None.
     """
+    if not city_name or not city_name.strip():
+        return None
+
     cleaned = city_name.strip().title()
     if cleaned in config.DEFAULT_CITIES:
         return (config.DEFAULT_CITIES[cleaned]["lat"], config.DEFAULT_CITIES[cleaned]["lon"])
@@ -114,7 +145,7 @@ def resolve_city_coordinates(city_name: str) -> Optional[Tuple[float, float]]:
         resp = session.get(config.OPEN_METEO_GEO_URL, params=geo_params, timeout=3.5)
         if resp.status_code == 200:
             results = resp.json().get("results")
-            if results:
+            if results and len(results) > 0:
                 return (float(results[0]["latitude"]), float(results[0]["longitude"]))
     except Exception:
         pass
@@ -135,7 +166,10 @@ def fetch_live_air_quality(
     Returns:
         Standardized air quality report dictionary.
     """
-    cleaned_city = city_name.strip().title()
+    cleaned_city = city_name.strip().title() if city_name else ""
+    if not cleaned_city:
+        cleaned_city = "Delhi"
+
     coords: Optional[Tuple[float, float]] = None
 
     if lat is not None and lon is not None:

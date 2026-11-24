@@ -15,10 +15,13 @@ ENV/
 
 # Testing & Coverage
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 
-# Media recordings (kept local)
+# Local Automation & Recording Scripts
+record_*.py
+add_*voiceover.py
 *.mp4
 *.webm
 *.wav
